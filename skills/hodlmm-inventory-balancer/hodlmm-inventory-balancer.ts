@@ -140,9 +140,10 @@ function calcSwap(
   if (diff > 0) {
     // Need more sBTC → swap STX → sBTC
     const stxNeeded = Math.abs(diff) / STX_PRICE * 1e6; // uSTX
+    const maxSwapUstx = maxSwap * 1e6; // maxSwap is in sats-equivalent; convert to uSTX cap
     return {
       direction: "stx_to_sbtc",
-      amount: Math.min(Math.round(stxNeeded), maxSwap * 1e6 / BTC_PRICE * 1e6),
+      amount: Math.min(Math.round(stxNeeded), maxSwapUstx),
       drift_pct: Math.abs(drift),
     };
   } else {
