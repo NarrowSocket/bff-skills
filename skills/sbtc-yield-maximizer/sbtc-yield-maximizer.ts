@@ -276,13 +276,45 @@ program
 
       console.log(JSON.stringify({ action, amount_sats: excess, reason, txid: tx.txid, confirmed, zest_apy: zestApy, hodlmm_apy: hodlmmApy }));
     } else {
-      // HODLMM supply path — use ALEX/Bitflow LP deposit
+      // HODLMM supply path — swap half sBTC to STX via ALEX, then LP
+      const SBTC_C = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
+      const WSTX_C = "SP1Y5YSTAHZ88XYK1VPDH24GY0HPX5J4JECTMY4A1.wstx";
+      const halfSats = Math.floor(excess / 2);
+      const alexContract = "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.amm-pool-v2-01";
+      const ws2 = mcp("wallet_status") as { wallet?: { address: string } };
+      const addr2 = ws2?.wallet?.address ?? "";
+
+      // Pre-simulate swap
+      const simCode = `(contract-call? '${alexContract} swap-helper '${SBTC_C} '${WSTX_C} u${halfSats} none)`;
+      const sim2 = simulate(addr2, alexContract, simCode);
+      if (!sim2.safe) {
+        console.log(JSON.stringify({ error: "HODLMM swap simulation failed", simulation: sim2.result }));
+        process.exit(1);
+      }
+
       if (dryRun) {
-        console.log(JSON.stringify({ dry_run: true, action, amount_sats: excess, reason, note: "HODLMM supply requires Bitflow LP deposit" }));
+        console.log(JSON.stringify({ dry_run: true, action, amount_sats: excess, half_swap_sats: halfSats, reason, simulation: "Ok" }));
         return;
       }
-      // Bitflow LP deposit via MCP (alex_swap to add liquidity)
-      console.log(JSON.stringify({ action, amount_sats: excess, reason, note: "HODLMM path: use alex_swap or bitflow LP tools to add liquidity", actionable: true }));
+
+      const swapTx = mcp("alex_swap", { from: SBTC_C, to: WSTX_C, amount: halfSats }) as { txid?: string };
+      if (!swapTx?.txid) {
+        console.log(JSON.stringify({ error: "HODLMM swap broadcast failed", response: swapTx }));
+        process.exit(1);
+      }
+
+      let confirmed = false;
+      for (let i = 0; i < 3; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const st = mcp("get_transaction_status", { txid: swapTx.txid }) as { status?: string };
+        if (st?.status === "success") { confirmed = true; break; }
+      }
+
+      console.log(JSON.stringify({
+        action, amount_sats: excess, half_swapped_sats: halfSats, reason,
+        txid: swapTx.txid, confirmed, zest_apy: zestApy, hodlmm_apy: hodlmmApy,
+        note: "Swapped half sBTC->STX for HODLMM LP. Use hodlmm-inventory-balancer to add LP.",
+      }));
     }
   });
 
