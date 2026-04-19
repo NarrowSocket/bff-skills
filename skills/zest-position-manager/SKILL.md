@@ -15,7 +15,21 @@ metadata:
 
 **Author:** NarrowSocket
 **Version:** 0.1.0
+**Last Updated:** 2026-04-19
 **Description:** Unified Zest Protocol position manager — supply sBTC as collateral, borrow STX, repay debt, and withdraw, all with health-factor guardrails and pre-broadcast simulation.
+
+## What it does
+
+Manages the complete Zest Protocol v2 position lifecycle on Stacks mainnet:
+
+1. **Supply** sBTC to Zest as yield-earning collateral
+2. **Borrow** wSTX against supplied sBTC (health-factor gated)
+3. **Repay** outstanding wSTX debt (partial or full)
+4. **Withdraw** supplied sBTC (after debt cleared or within safe HF limits)
+5. **Status** — live position snapshot: supplied sats, borrowed uSTX, health factor, available-to-borrow
+6. **Doctor** — pre-flight checks before any operation
+
+All write operations pre-simulate via stxer before broadcast. Health factor is checked before every borrow and withdraw to prevent liquidation.
 
 ## Why agents need it
 
