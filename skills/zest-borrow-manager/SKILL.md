@@ -120,6 +120,15 @@ All commands emit JSON to stdout:
 }
 ```
 
+## Safety notes
+
+- All on-chain actions require explicit user confirmation with `--confirm` flag
+- Maximum borrow amount limited to 80% of collateral value to maintain safety margin
+- Price impact protection: swap/borrow aborted if expected impact > 1.5%
+- 4-hour cooldown between major position adjustments to prevent rapid liquidation risk
+- Gas and slippage checks performed before every transaction
+- All operations tested in dry-run mode by default
+
 ## Known constraints
 
 - Requires an existing Zest supply position (use `zest-yield-manager` to supply first)
