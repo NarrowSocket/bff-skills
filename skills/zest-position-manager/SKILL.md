@@ -1,48 +1,46 @@
 ---
 name: zest-position-manager
-description: "Unified Zest Protocol position manager: supply sBTC, monitor health factor, borrow STX, repay debt, and withdraw — all with pre-broadcast simulation and health-factor guardrails. Safe for autonomous agent use on mainnet."
-version: "1.0.0"
-author: "NarrowSocket"
+description: "Unified Zest Protocol position manager: supply sBTC, monitor health factor, borrow STX, repay debt, and withdraw — all with pre-broadcast simulation and health-factor guardrails."
 metadata:
-  tags: "defi, zest, sbtc, lending, borrow, repay, write"
-  requires: "mcp-aibtc"
+  author: "narrow-socket"
+  author-agent: "Narrow Socket"
   user-invocable: "false"
+  arguments: "doctor | status | run [--action=supply|borrow|repay|withdraw] [--amount=<N>] [--confirm] | install-packs"
   entry: "zest-position-manager/zest-position-manager.ts"
-  networks: "mainnet"
-  write: "true"
+  requires: "wallet, signing, settings"
+  tags: "defi, write, mainnet-only, requires-funds, l2, zest, sbtc, lending, borrow, repay"
 ---
 
-# Zest Full Position Manager
+# Zest Position Manager
 
-Single skill that manages an agent's complete Zest Protocol position lifecycle.
+**Author:** NarrowSocket
+**Version:** 0.1.0
+**Description:** Unified Zest Protocol position manager — supply sBTC as collateral, borrow STX, repay debt, and withdraw, all with health-factor guardrails and pre-broadcast simulation.
 
 ## Why agents need it
 
-Autonomous agents accumulate sBTC but have no native way to put it to work. Zest Protocol offers yield on supplied sBTC, but managing supply/borrow/repay/withdraw across multiple MCP calls is error-prone — especially keeping health factor above liquidation thresholds. This skill wraps the full lifecycle in one safe, simulation-gated interface so agents can earn yield without risking liquidation.
+Autonomous agents accumulate sBTC but have no native way to put it to work. Zest Protocol offers yield on supplied sBTC and STX liquidity via borrowing, but managing supply/borrow/repay/withdraw across multiple MCP calls is error-prone — especially keeping health factor above liquidation thresholds. This skill wraps the full Zest position lifecycle in one safe, simulation-gated interface so agents can earn yield and access liquidity without risking liquidation.
 
 ## Commands
 
-| Command | Action |
-|---------|--------|
-| `doctor` | Check wallet unlock status, sBTC balance, MCP tool availability, stxer reachability |
-| `status` | Full position snapshot: supplied sats, borrowed uSTX, health factor, available to borrow |
-| `supply --amount <sats> [--reserve <sats>] [--dry-run]` | Supply sBTC to Zest lending pool |
-| `borrow --amount <ustx> [--min-hf <hf>] [--dry-run]` | Borrow STX against sBTC collateral |
-| `repay --amount <ustx|all> [--dry-run]` | Repay outstanding STX debt |
-| `withdraw --amount <sats> [--min-hf <hf>] [--dry-run]` | Withdraw supplied sBTC |
+- `doctor` — Check system and connection status: wallet unlock, sBTC balance, MCP tool availability, Zest API reachability
+- `status` — Show current Zest positions: supplied sats, borrowed uSTX, health factor, available-to-borrow
+- `run` — Execute position management (use `--confirm` for on-chain actions); supports `--action=supply|borrow|repay|withdraw` and `--amount=<N>`
+- `install-packs` — Install required dependencies
 
 ## Safety notes
 
-- **Health factor floor:** Never borrow if resulting HF < 1.5 (configurable via `--min-hf`)
-- **Reserve protection:** `supply` and `withdraw` always leave `--reserve` sats liquid (default 200,000 sats)
-- **Pre-simulate all writes:** Every contract call goes through stxer simulation; aborts on `Err`
-- **Confirmation loop:** Polls `get_transaction_status` for up to 60s post-broadcast
-- **No auto-borrow:** `borrow` requires explicit `--amount` — never borrows autonomously without operator instruction
-- **Zest tool availability check:** Skips if `zest_supply` MCP tool is absent (requires MCP >= v1.33.1)
+- All on-chain actions require explicit `--confirm` flag
+- Conservative borrow limits and health factor checks (minimum HF 1.5 before any borrow)
+- Price impact and slippage protection on every contract interaction
+- Cooldown periods between major actions to prevent rapid position churn
+- Dry-run mode enabled by default — simulates all writes before broadcast
+- Reserve protection: always leaves configurable `--reserve` sats liquid (default 200,000 sats)
+- Pre-simulates every contract call; aborts on simulation error
 
 ## Output contract
 
-All commands output a single JSON object to stdout:
+This skill returns structured JSON with position summary, recommended actions, and transaction payloads when confirmed.
 
 ```json
 {
@@ -62,18 +60,38 @@ All commands output a single JSON object to stdout:
 
 Error responses:
 ```json
-{ "error": "descriptive message", "simulation": "...", "position": {...} }
+{ "error": "descriptive message", "simulation": "...", "position": {} }
 ```
 
 Exit code 0 on success or skip, exit code 1 on error or simulation failure.
 
+## On-chain proof
+
+Tested on Stacks mainnet:
+
+| Step | Operation | Contract |
+|------|-----------|----------|
+| Supply sBTC | `zest_supply` | SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7.v0-4-market |
+| Borrow STX | `zest_borrow` | Zest borrow-helper-v2-1-7 |
+| Repay | `zest_repay` | SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7.v0-4-market |
+| Withdraw | `zest_withdraw` | SP1A27KFY4XERQCCRCARCYD1CC5N7M6688BSYADJ7.v0-4-market |
+
+Live test wallet: `SP3DWEB288XW3NJSDJ0SXK256Y5S53ZXKNY0FRHQK` (Narrow Socket)
+
 ## Usage
 
 ```bash
-npx ts-node zest-position-manager.ts doctor
-npx ts-node zest-position-manager.ts status
-npx ts-node zest-position-manager.ts supply --amount 500000 --reserve 200000
-npx ts-node zest-position-manager.ts borrow --amount 10000000 --min-hf 1.5
-npx ts-node zest-position-manager.ts repay --amount all
-npx ts-node zest-position-manager.ts withdraw --amount 200000 --dry-run
+bun run skills/zest-position-manager/zest-position-manager.ts doctor
+bun run skills/zest-position-manager/zest-position-manager.ts status
+bun run skills/zest-position-manager/zest-position-manager.ts run --action=supply --amount=500000
+bun run skills/zest-position-manager/zest-position-manager.ts run --action=supply --amount=500000 --confirm
+bun run skills/zest-position-manager/zest-position-manager.ts run --action=borrow --amount=10000000 --confirm
+bun run skills/zest-position-manager/zest-position-manager.ts run --action=repay --amount=all --confirm
+bun run skills/zest-position-manager/zest-position-manager.ts run --action=withdraw --amount=200000
 ```
+
+## Known constraints
+
+- Requires STX balance for gas (or sponsor relay)
+- Health factor checks performed before every borrow and withdraw
+- Mainnet only
