@@ -1,3 +1,9 @@
+---
+name: zest-supply-manager-agent
+skill: zest-supply-manager
+description: Agent guide for the Zest Supply Manager — deposit, withdraw, and track yield on sBTC/wSTX/stSTX in Zest Protocol v2.
+---
+
 # Zest Supply Manager — Agent Guide
 
 ## When to use this skill
